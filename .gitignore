@@ -1,0 +1,7 @@
+Cargo.lock
+target/
+
+BirdNET/
+LiteRT/
+
+*.wav

@@ -1,0 +1,3 @@
+[submodule "audio-capture"]
+	path = audio-capture
+	url = git@github.com:GAN-pie/audio-capture.git

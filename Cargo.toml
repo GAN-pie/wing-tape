@@ -1,0 +1,17 @@
+[package]
+name = "litert_test"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+clap = { version = ">=4.6, <5", features = ["derive"] }
+google-ai-edge-litert = { version = "0.1", path = "./LiteRT/litert/rust" }
+audio-capture = { path = "audio-capture" }
+
+[[bin]]
+name = "birdnet-test"
+path = "birdnet_test.rs"
+
+[workspace]
+members = ["audio-capture"]
+resolver = "2"
