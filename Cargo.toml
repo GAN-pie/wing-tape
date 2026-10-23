@@ -10,7 +10,7 @@ audio-capture = { path = "audio-capture" }
 
 [[bin]]
 name = "birdnet-test"
-path = "birdnet_test.rs"
+path = "src/bin/birdnet-test.rs"
 
 [workspace]
 members = ["audio-capture"]
