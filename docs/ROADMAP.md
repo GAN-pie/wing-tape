@@ -78,7 +78,7 @@
 |---|---|---|---|
 | T0.1 | Module de capture audio temps réel | ✅ | Composant fonctionnel et débogué |
 | T0.2 | Moteur d'inférence BirdNET (runtime embarqué) | ✅ | Inférence opérationnelle sur données synthétiques |
-| T0.3 | Choix de la pile technique (modèle, runtime, bindings) | 🔄 | Note d'architecture à figer et documenter |
+| T0.3 | Choix de la pile technique (modèle, runtime, bindings) | ✅ | Note d'architecture documentée |
 
 **Critère de sortie atteint** : les deux briques fonctionnent indépendamment. Aucune intégration n'existe encore.
 
@@ -92,13 +92,13 @@
 
 | ID | Tâche | Dépend de | Statut |
 |---|---|---|---|
-| T1.1 | Figer les contrats d'interface (format audio attendu, format du tenseur d'entrée) | T0.3 | ⬜ ⛔ |
-| T1.2 | Implémenter la fenêtre glissante (3 s, recouvrement 1 s) | T1.1 | ⬜ |
+| T1.1 | Figer les contrats d'interface (format audio attendu, format du tenseur d'entrée) | T0.3 | 🔄 |
+| T1.2 | Implémenter la fenêtre glissante (3 s, recouvrement 1 s) | T1.1 | ✅ |
 | T1.3 | Mettre en place le pipeline à deux flux séparés (capture / inférence) | T1.1 | ⬜ |
 | T1.4 | Définir la politique de traitement en cas de retard d'inférence | T1.3 | ⬜ |
-| T1.5 | Abstraire la source audio (micro réel / fichier de test) | T1.1 | ⬜ ⛔ |
-| T1.6 | Boucle d'exécution continue avec arrêt propre | T1.2, T1.3, T1.4 | ⬜ |
-| T1.7 | Journalisation brute minimale (timestamp, scores) | T1.6 | ⬜ |
+| T1.5 | Abstraire la source audio (micro réel / fichier de test) | T1.1 | 🔄 |
+| T1.6 | Boucle d'exécution continue avec arrêt propre | T1.2, T1.3, T1.4 | 🔄 |
+| T1.7 | Journalisation brute minimale (timestamp, scores) | T1.6 | ✅ |
 
 **Livrables** : exécutable tournant en continu, logs de détection horodatés, mesures de temps d'inférence brutes.
 
