@@ -1,8 +1,8 @@
 use audio_capture;
 use clap::Parser;
-use litert_test::utils::windowing::SlidingAudioWindow;
 use std::sync::mpsc;
 use std::thread;
+use wing_tape::utils::windowing::SlidingAudioWindow;
 
 #[derive(Parser, Debug, Clone)]
 #[command(author, version, about, long_about = None)]
