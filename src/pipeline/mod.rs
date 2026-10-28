@@ -1,6 +1,9 @@
 pub mod capture;
 pub mod inference;
+pub mod microphone;
 pub mod orchestrator;
+
+pub use capture::AudioSource;
 
 use std::time::Instant;
 
