@@ -1,7 +1,5 @@
 use crate::pipeline::{AudioWindow, InferenceCommand, InferenceEvent, Prediction, SystemEvent};
 use std::sync::mpsc;
-use std::thread;
-use std::time::Instant;
 
 pub trait InferenceEngine: Send + 'static {
     fn predict(&mut self, window: &AudioWindow) -> Result<Prediction, String>;

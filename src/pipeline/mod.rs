@@ -1,9 +1,11 @@
+pub mod birdnet;
 pub mod capture;
 pub mod inference;
 pub mod microphone;
 pub mod orchestrator;
 
 pub use capture::AudioSource;
+pub use inference::InferenceEngine;
 
 use std::time::Instant;
 
