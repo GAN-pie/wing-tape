@@ -1,14 +1,12 @@
+use audio_capture::AudioCaptureConfig;
 use clap::Parser;
 use std::sync::mpsc;
 use std::thread;
 use wing_tape::pipeline::birdnet::BirdNetClassifier;
-use wing_tape::pipeline::capture::{AudioSource, CaptureActor};
-use wing_tape::pipeline::inference::{InferenceActor, InferenceEngine};
 use wing_tape::pipeline::microphone::MicrophoneSource;
 use wing_tape::pipeline::orchestrator::Orchestrator;
 use wing_tape::pipeline::{
-    AudioCaptureConfig, CaptureCommand, CaptureEvent, InferenceCommand, InferenceEvent, Prediction,
-    SystemEvent, UserCommand,
+    CaptureActor, CaptureCommand, InferenceActor, InferenceCommand, SystemEvent, UserCommand,
 };
 
 #[derive(Parser, Debug, Clone)]
@@ -20,7 +18,7 @@ struct Args {
     #[arg(short, long, default_value_t = 0)]
     duration: u64,
 
-    #[arg(short, long, default_value = "alsa:default")]
+    #[arg(short('D'), long, default_value = "alsa:default")]
     device_id: String,
 }
 

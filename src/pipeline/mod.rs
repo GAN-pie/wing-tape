@@ -4,9 +4,8 @@ pub mod inference;
 pub mod microphone;
 pub mod orchestrator;
 
-pub use audio_capture::AudioCaptureConfig;
-pub use capture::AudioSource;
-pub use inference::InferenceEngine;
+pub use capture::{AudioSource, CaptureActor};
+pub use inference::{InferenceActor, InferenceEngine};
 
 use std::time::Instant;
 
