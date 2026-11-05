@@ -12,7 +12,7 @@ struct Args {
 }
 
 struct SegmentationModel {
-    model: litert::Model,
+    model: litert::Model<'static>,
     env: litert::Environment,
     compiled_model: litert::CompiledModel,
 }

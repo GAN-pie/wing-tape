@@ -2,7 +2,7 @@ use crate::pipeline::{AudioWindow, InferenceEngine, Prediction};
 use std::time::Instant;
 
 pub struct BirdNetClassifier {
-    model: litert::Model,
+    model: litert::Model<'static>,
     env: litert::Environment,
     compiled_model: litert::CompiledModel,
     preds_buffer: Vec<f32>,
