@@ -80,7 +80,7 @@
 | T0.2 | Moteur d'inférence BirdNET (runtime embarqué) | ✅ | Inférence opérationnelle sur données synthétiques |
 | T0.3 | Choix de la pile technique (modèle, runtime, bindings) | ✅ | Note d'architecture documentée |
 
-**Critère de sortie atteint** : les deux briques fonctionnent indépendamment. Aucune intégration n'existe encore.
+**Critère de sortie atteint** : les deux briques fonctionnent indépendamment. L'intégration via le pipeline (Orchestrator) est désormais opérationnelle.
 
 **Point d'attention** : T0.3 doit être formellement clos avant T1.1, car le contrat de données dépend du modèle et du runtime retenus. Documenter ce choix (version du modèle, quantification, nature de l'entrée attendue) est indispensable pour la reproductibilité par des tiers.
 
@@ -92,10 +92,10 @@
 
 | ID | Tâche | Dépend de | Statut |
 |---|---|---|---|
-| T1.1 | Figer les contrats d'interface (format audio attendu, format du tenseur d'entrée) | T0.3 | 🔄 |
+| T1.1 | Figer les contrats d'interface (format audio attendu, format du tenseur d'entrée) | T0.3 | ✅ |
 | T1.2 | Implémenter la fenêtre glissante (3 s, recouvrement 1 s) | T1.1 | ✅ |
-| T1.3 | Mettre en place le pipeline à deux flux séparés (capture / inférence) | T1.1 | ⬜ |
-| T1.4 | Définir la politique de traitement en cas de retard d'inférence | T1.3 | ⬜ |
+| T1.3 | Mettre en place le pipeline à deux flux séparés (capture / inférence) | T1.1 | ✅ |
+| T1.4 | Définir la politique de traitement en cas de retard d'inférence | T1.3 | 🔄 |
 | T1.5 | Abstraire la source audio (micro réel / fichier de test) | T1.1 | 🔄 |
 | T1.6 | Boucle d'exécution continue avec arrêt propre | T1.2, T1.3, T1.4 | 🔄 |
 | T1.7 | Journalisation brute minimale (timestamp, scores) | T1.6 | ✅ |
@@ -330,13 +330,13 @@ Hypothèse : ~6–8 h de travail par semaine. À ajuster librement.
 À cocher au fil de l'eau.
 
 **Phase 1 — Intégration**
-- [ ] T1.1 — Contrats d'interface figés
-- [ ] T1.2 — Fenêtre glissante
-- [ ] T1.3 — Pipeline à deux flux
+- [x] T1.1 — Contrats d'interface figés
+- [x] T1.2 — Fenêtre glissante
+- [x] T1.3 — Pipeline à deux flux
 - [ ] T1.4 — Politique de retard
 - [ ] T1.5 — Abstraction source audio
 - [ ] T1.6 — Boucle continue
-- [ ] T1.7 — Journalisation brute
+- [x] T1.7 — Journalisation brute
 - [ ] **J1 franchi** + publication
 
 **Phase 2 — Validation**
@@ -389,6 +389,7 @@ Hypothèse : ~6–8 h de travail par semaine. À ajuster librement.
 | Version | Date | Modification |
 |---|---|---|
 | 1.0 | 19 oct. 2026 | Création. Phase 5 réduite à l'alimentation batterie (étude solaire retirée du périmètre). |
+| 1.1 | 18 nov. 2026 | Mise à jour majeure : alignement du roadmap sur l'implémentation réelle (Orchestrator, Pipeline, LiteRT) |
 
 ---
 
