@@ -16,11 +16,11 @@ impl BirdNetClassifier {
     pub fn new(model_path: &str) -> Result<Self, String> {
         let env = litert::EnvironmentBuilder::build_default()
             .map_err(|e| format!("Failed to build litert environment: {:?}", e))?;
-        let m = litert::Model::create_model_from_file(&env, model_path)
+        let mut m = litert::Model::create_model_from_file(&env, model_path)
             .map_err(|e| format!("Failed to create model: {:?}", e))?;
         let options = litert::Options::create_with_accelerator(litert::LiteRtHwAccelerator::Cpu)
             .map_err(|e| format!("Failed to create options: {:?}", e))?;
-        let cm = litert::CompiledModel::create(&env, &m, &options)
+        let cm = litert::CompiledModel::create(&env, &mut m, &options)
             .map_err(|e| format!("Failed to compile model: {:?}", e))?;
 
         // We'll use a fixed size buffer for predictions.
