@@ -3,9 +3,11 @@ pub mod capture;
 pub mod inference;
 pub mod microphone;
 pub mod orchestrator;
+pub mod wav_source;
 
 pub use capture::{AudioSource, CaptureActor};
 pub use inference::{InferenceActor, InferenceEngine};
+pub use wav_source::WAVFileSource;
 
 use std::time::Instant;
 

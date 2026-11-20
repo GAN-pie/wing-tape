@@ -13,10 +13,10 @@ impl MicrophoneSource {
         config: AudioCaptureConfig,
         window_duration_secs: f32,
         overlap_duration_secs: f32,
-    ) -> Result<Self, String> {
+    ) -> anyhow::Result<Self> {
         let sample_rate = config.sample_rate as u32;
         let iterator = AudioCapture::new(config)
-            .map_err(|e| format!("Failed to start audio capture: {:?}", e))?;
+            .map_err(|e| anyhow::anyhow!("Failed to start audio capture: {:?}", e))?;
 
         let window_processor = SlidingAudioWindow::new(
             sample_rate as usize,
