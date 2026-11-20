@@ -67,3 +67,85 @@ impl AudioSource for WAVFileSource {
         self.sample_rate
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::NamedTempFile;
+
+    /// Helper to create a dummy WAV file for testing.
+    /// Creates a 16-bit mono WAV file with a known sequence of samples.
+    fn create_test_wav(samples: Vec<i16>, sample_rate: u32) -> NamedTempFile {
+        let mut temp_file = NamedTempFile::new().unwrap();
+        let spec = hound::WavSpec {
+            channels: 1,
+            sample_rate,
+            bits_per_sample: 16,
+            sample_format: hound::SampleFormat::Int,
+        };
+
+        let mut writer = hound::WavWriter::new(&mut temp_file, spec).unwrap();
+        for s in samples {
+            writer.write_sample(s).unwrap();
+        }
+        writer.finalize().unwrap();
+        temp_file
+    }
+
+    #[test]
+    fn test_wav_file_source_reading() {
+        // Create a WAV file with 100 samples of 0
+        let sample_rate = 1000;
+        let samples = vec![0i16; 100];
+        let temp_file = create_test_wav(samples, sample_rate);
+        let path = temp_file.path();
+
+        // Window: 0.1s (100 samples), Overlap: 0.05s (50 samples)
+        // Step size = 100 - 50 = 50 samples
+        let mut source = WAVFileSource::new(path, 0.1, 0.05).expect("Failed to create source");
+
+        // First window should be ready after we've consumed enough samples.
+        let window = source
+            .next_chunk()
+            .expect("Should have returned first window");
+        assert_eq!(window.len(), 100);
+        assert_eq!(window[0], 0.0);
+
+        // Second window should be the next 50 samples (due to 50 sample overlap)
+        let window2 = source.next_chunk();
+        assert!(window2.is_none());
+    }
+
+    #[test]
+    fn test_wav_file_source_sliding_windows() {
+        let sample_rate = 1000;
+        // Create 250 samples
+        let samples = (0..250).map(|i| i as i16).collect::<Vec<_>>();
+        let temp_file = create_test_wav(samples, sample_rate);
+        let path = temp_file.path();
+
+        // Window: 0.1s (100 samples), Overlap: 0.05s (50 samples)
+        // Step: 50 samples.
+        // Expected windows:
+        // 1. [0..100]
+        // 2. [50..150]
+        // 3. [100..200]
+        // 4. [150..250]
+        let mut source = WAVFileSource::new(path, 0.1, 0.05).expect("Failed to create source");
+
+        let w1 = source.next_chunk().expect("Window 1 missing");
+        assert_eq!(w1.len(), 100);
+
+        let w2 = source.next_chunk().expect("Window 2 missing");
+        assert_eq!(w2.len(), 100);
+
+        let w3 = source.next_chunk().expect("Window 3 missing");
+        assert_eq!(w3.len(), 100);
+
+        let w4 = source.next_chunk().expect("Window 4 missing");
+        assert_eq!(w4.len(), 100);
+
+        let w5 = source.next_chunk();
+        assert!(w5.is_none(), "Window 5 should not exist");
+    }
+}
