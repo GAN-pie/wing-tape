@@ -4,9 +4,10 @@ use hound;
 use std::path::Path;
 
 pub struct WAVFileSource {
-    samples: hound::Samples<std::fs::File, i16>,
+    data: Vec<f32>,
     sample_rate: u32,
     window_processor: SlidingAudioWindow,
+    index: usize,
 }
 
 impl WAVFileSource {
@@ -25,15 +26,22 @@ impl WAVFileSource {
             ));
         }
 
-        if !matches!(spec.sample_type, hound::SampleType::Int) {
+        if !matches!(spec.sample_format, hound::SampleFormat::Int) {
             return Err(anyhow::anyhow!(
-                "Only signed integer (Int) sample types are supported for now. Found {:?}.",
-                spec.sample_type
+                "Only signed integer (Int) sample formats are supported for now. Found {:?}.",
+                spec.sample_format
             ));
         }
 
         let sample_rate = spec.sample_rate;
-        let samples = reader.samples::<i16>();
+
+        // Read all samples into memory to satisfy Send + 'static
+        let mut data = Vec::with_capacity(reader.len() as usize);
+        for sample_result in reader.samples::<i16>() {
+            let s = sample_result.map_err(|e| anyhow::anyhow!("Error reading sample: {:?}", e))?;
+            data.push(s as f32 / 32768.0);
+        }
+
         let window_processor = SlidingAudioWindow::new(
             sample_rate as usize,
             window_duration_secs,
@@ -41,9 +49,10 @@ impl WAVFileSource {
         );
 
         Ok(Self {
-            samples,
+            data,
             sample_rate,
             window_processor,
+            index: 0,
         })
     }
 }
@@ -51,15 +60,23 @@ impl WAVFileSource {
 impl AudioSource for WAVFileSource {
     fn next_chunk(&mut self) -> Option<Vec<f32>> {
         loop {
-            let sample = match self.samples.next() {
-                Some(Ok(s)) => s as f32 / 32768.0,
-                Some(Err(_)) => return None,
-                None => return None,
-            };
+            if self.index >= self.data.len() {
+                return None;
+            }
+
+            // To keep it simple and match the behavior requested (one sample at a time
+            // into the window processor), we'll take one sample.
+            // However, feeding one sample at a time via process_chunk(vec![sample])
+            // is what we did before and it worked.
+            // NOTE
+
+            let sample = self.data[self.index];
+            self.index += 1;
 
             if let Some(window) = self.window_processor.process_chunk(vec![sample]) {
                 return Some(window);
             }
+            // If no window is ready, continue to the next sample in the loop
         }
     }
 
