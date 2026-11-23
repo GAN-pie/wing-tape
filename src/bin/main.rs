@@ -6,7 +6,7 @@ use wing_tape::pipeline::birdnet::BirdNetClassifier;
 use wing_tape::pipeline::microphone::MicrophoneSource;
 use wing_tape::pipeline::orchestrator::Orchestrator;
 use wing_tape::pipeline::{
-    CaptureActor, CaptureCommand, InferenceActor, InferenceCommand, SystemEvent, UserCommand,
+    CaptureActor, CaptureCommand, InferenceActor, InferenceCommand, SystemEvent,
 };
 
 #[derive(Parser, Debug, Clone)]
@@ -20,6 +20,10 @@ struct Args {
 
     #[arg(short('D'), long, default_value = "alsa:default")]
     device_id: String,
+
+    /// Start the pipeline idle (paused) instead of running.
+    #[arg(long, default_value_t = false)]
+    start_idle: bool,
 }
 
 fn main() {
@@ -71,13 +75,11 @@ fn main() {
         system_event_rx,
         capture_cmd_tx.clone(),
         inference_cmd_tx.clone(),
-    );
+    )
+    .with_start_paused(args.start_idle);
 
-    // Start the process
+    // The orchestrator runs the pipeline as soon as it starts.
     println!("Starting Wing-Tape pipeline...");
-    system_event_tx
-        .send(SystemEvent::User(UserCommand::Start))
-        .unwrap();
 
     // Run the orchestrator (this blocks until the loop ends)
     orchestrator.run();

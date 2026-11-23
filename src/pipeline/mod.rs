@@ -52,6 +52,8 @@ pub enum InferenceCommand {
 #[derive(Debug)]
 pub enum UserCommand {
     Start,
+    Pause,
+    Resume,
     Stop,
 }
 
