@@ -31,6 +31,12 @@ struct Args {
     #[arg(long, default_value_t = false)]
     start_idle: bool,
 
+    /// Exit when the pipeline reaches a terminal state (failed or stopped)
+    /// instead of continuing to serve status until SIGINT/SIGTERM. Implied when
+    /// `--duration` is greater than 0.
+    #[arg(long, default_value_t = false)]
+    exit_on_failure: bool,
+
     /// Address the web control server will bind to (server lands separately).
     #[arg(long, default_value = "127.0.0.1:8080")]
     bind: String,
@@ -149,7 +155,11 @@ fn main() {
         orchestrator.run();
     });
 
-    wait_for_shutdown(&shutdown, &status);
+    // A finite run (`--duration`) is expected to end on its own; otherwise a
+    // terminal state keeps the process alive so status can still be served. A
+    // signal always exits.
+    let exit_on_terminal = args.exit_on_failure || args.duration > 0;
+    wait_for_shutdown(&shutdown, &status, exit_on_terminal);
 
     println!("Shutting down...");
     // Ask the orchestrator to stop both actors, then close every event sender.
@@ -169,22 +179,93 @@ fn main() {
     println!("Goodbye!");
 }
 
-/// Blocks until a shutdown signal arrives or the pipeline reaches a terminal
-/// state (for example a `--duration` source running out).
-fn wait_for_shutdown(shutdown: &AtomicBool, status: &SharedStatus) {
+/// Blocks until a signal arrives, or until the pipeline reaches a terminal state
+/// when `exit_on_terminal` is set.
+///
+/// A terminal state (`Failed`/`Stopped`) does not end the process by default: the
+/// status server keeps running so the UI can report the error or confirm the stop.
+/// Only a finite `--duration` run or an explicit `--exit-on-failure` opts into
+/// exiting automatically.
+fn wait_for_shutdown(shutdown: &AtomicBool, status: &SharedStatus, exit_on_terminal: bool) {
+    let mut announced_terminal = false;
+
     loop {
         if shutdown.load(Ordering::Relaxed) {
             return;
         }
 
-        let terminal = status
-            .lock()
-            .map(|status| matches!(status.state, PipelineState::Stopped | PipelineState::Failed))
-            .unwrap_or(false);
-        if terminal {
-            return;
+        let state = status.lock().ok().map(|status| status.state);
+        if let Some(state) = state {
+            if matches!(state, PipelineState::Stopped | PipelineState::Failed) {
+                if exit_on_terminal {
+                    return;
+                }
+
+                if !announced_terminal {
+                    eprintln!(
+                        "Pipeline is {state:?}; keeping the process alive to serve status. \
+                         Send SIGINT/SIGTERM to exit, or pass --exit-on-failure."
+                    );
+                    announced_terminal = true;
+                }
+            }
         }
 
         thread::sleep(Duration::from_millis(200));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::Mutex;
+    use std::time::Instant;
+    use wing_tape::pipeline::PipelineStatus;
+
+    fn failed_status() -> SharedStatus {
+        Arc::new(Mutex::new(PipelineStatus {
+            state: PipelineState::Failed,
+            ..PipelineStatus::new()
+        }))
+    }
+
+    fn join_with_timeout(handle: thread::JoinHandle<()>, timeout: Duration) {
+        let deadline = Instant::now() + timeout;
+        while !handle.is_finished() {
+            if Instant::now() > deadline {
+                panic!("wait_for_shutdown did not return within {timeout:?}");
+            }
+            thread::sleep(Duration::from_millis(5));
+        }
+        handle.join().unwrap();
+    }
+
+    #[test]
+    fn keeps_serving_after_failure_by_default() {
+        let shutdown = Arc::new(AtomicBool::new(false));
+        let flag = Arc::clone(&shutdown);
+        let status = failed_status();
+        let probe = Arc::clone(&status);
+
+        let handle = thread::spawn(move || wait_for_shutdown(&flag, &probe, false));
+
+        // A failure must not tear the process down while status is still useful.
+        thread::sleep(Duration::from_millis(250));
+        assert!(
+            !handle.is_finished(),
+            "process must keep serving status after a failure by default"
+        );
+
+        shutdown.store(true, Ordering::Relaxed);
+        join_with_timeout(handle, Duration::from_secs(1));
+    }
+
+    #[test]
+    fn exits_on_failure_when_opted_in() {
+        let shutdown = Arc::new(AtomicBool::new(false));
+        let status = failed_status();
+
+        let handle = thread::spawn(move || wait_for_shutdown(&shutdown, &status, true));
+        join_with_timeout(handle, Duration::from_secs(1));
     }
 }
