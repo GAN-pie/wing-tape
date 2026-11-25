@@ -24,6 +24,13 @@ impl InferenceActor {
         }
     }
 
+    /// Runs the inference loop until [`InferenceCommand::Stop`] arrives or the
+    /// command channel closes.
+    ///
+    /// `Stop` is terminal by design: the actor exits and cannot be restarted without
+    /// rebuilding it (which also reloads the model). Callers that want to pause the
+    /// pipeline should stop feeding windows instead of sending `Stop` — the
+    /// orchestrator's pause gate does this while keeping the loaded model warm.
     pub fn run(mut self) {
         while let Ok(cmd) = self.command_rx.recv() {
             match cmd {
