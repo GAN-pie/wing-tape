@@ -1,6 +1,7 @@
 use audio_capture::AudioCaptureConfig;
 use clap::Parser;
 use signal_hook::consts::{SIGINT, SIGTERM};
+use std::net::SocketAddr;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc;
@@ -14,6 +15,7 @@ use wing_tape::pipeline::{
     SystemEvent, UserCommand,
 };
 use wing_tape::utils::labels::Labels;
+use wing_tape::webui::WebControlActor;
 
 #[derive(Parser, Debug, Clone)]
 #[command(author, version, about, long_about = None)]
@@ -37,31 +39,18 @@ struct Args {
     #[arg(long, default_value_t = false)]
     exit_on_failure: bool,
 
-    /// Address the web control server will bind to (server lands separately).
+    /// Address the web control server binds to.
     #[arg(long, default_value = "127.0.0.1:8080")]
-    bind: String,
+    bind: SocketAddr,
 
     /// Optional zero-indexed, single-column species labels file.
     #[arg(long)]
     labels_path: Option<String>,
 }
 
-/// Handles reserved for the upcoming web control actor.
-///
-/// The server will use `event_tx` to inject user commands, `status` to answer
-/// `/api/status`, `shutdown` to stop its accept loop, and `bind` for its listen
-/// address. Keeping this clone alive until shutdown also guarantees the
-/// orchestrator's event channel does not close while a web request is in flight.
-#[allow(dead_code)]
-struct WebControlSeam {
-    bind: String,
-    status: SharedStatus,
-    event_tx: mpsc::Sender<SystemEvent>,
-    shutdown: Arc<AtomicBool>,
-}
-
 fn main() {
     let args = Args::parse();
+    let bind = args.bind;
 
     let labels = match &args.labels_path {
         Some(path) => match Labels::from_path(path) {
@@ -135,15 +124,17 @@ fn main() {
 
     let status = orchestrator.status();
 
-    // The external command seam for the web control actor. Built before the
-    // orchestrator moves into its thread, and kept alive until shutdown.
-    let web_seam = WebControlSeam {
-        bind: args.bind,
-        status: Arc::clone(&status),
-        event_tx: system_event_tx.clone(),
-        shutdown: Arc::clone(&shutdown),
-    };
-    println!("Web control will bind to {}", web_seam.bind);
+    // The web control actor is a peer producer on the event bus. Binding happens
+    // synchronously here so a port conflict fails fast, before the pipeline
+    // starts running.
+    let web = WebControlActor::new(
+        bind,
+        Arc::clone(&status),
+        system_event_tx.clone(),
+        Arc::clone(&shutdown),
+    );
+    let web_handle = web.spawn().expect("failed to bind web control server");
+    println!("Web control listening on {}", web_handle.addr());
 
     println!("Starting Wing-Tape pipeline...");
     // `main` owns the lifecycle. The orchestrator runs on its own thread so
@@ -166,7 +157,13 @@ fn main() {
     // std::mpsc delivers queued messages before reporting disconnect, so the
     // Stop is always observed, after which `run()` returns.
     let _ = system_event_tx.send(SystemEvent::User(UserCommand::Stop));
-    drop(web_seam);
+
+    // The web actor holds an event_tx clone and must exit (dropping it) before
+    // the orchestrator can observe channel closure. Set the flag even when the
+    // shutdown was triggered by a terminal state rather than a signal.
+    shutdown.store(true, Ordering::SeqCst);
+    let _ = web_handle.join();
+
     drop(system_event_tx);
     let _ = orchestrator_handle.join();
 
