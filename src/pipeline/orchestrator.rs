@@ -119,18 +119,13 @@ impl Orchestrator {
 
     fn handle_inference(&mut self, event: InferenceEvent) {
         match event {
-            InferenceEvent::Prediction(prediction) => {
-                println!(
-                    "Prediction: Class {}, Prob {:.4}",
-                    prediction.class_id, prediction.probability
-                );
-                self.record_prediction(prediction);
-            }
+            InferenceEvent::Prediction(prediction) => self.record_prediction(prediction),
             InferenceEvent::Error(e) => {
                 eprintln!("Inference Error: {}", e);
-                // Non-fatal: record the error and keep the pipeline running. A
-                // single bad window should not take down the microphone.
-                if self.state != PipelineState::Stopped {
+                // Non-fatal: record the error and keep the pipeline running. Only
+                // record it while the pipeline is live; a late error after a
+                // terminal transition must not replace a fatal error.
+                if matches!(self.state, PipelineState::Running | PipelineState::Paused) {
                     self.record_error(e);
                 }
             }
@@ -182,9 +177,18 @@ impl Orchestrator {
     }
 
     fn record_prediction(&mut self, prediction: Prediction) {
-        if self.state == PipelineState::Stopped {
+        // A prediction already in flight when the pipeline failed can still arrive
+        // afterwards. Ignore it so the snapshot cannot contradict itself: a Failed
+        // state must keep its fatal error and must not report a new prediction.
+        if matches!(self.state, PipelineState::Stopped | PipelineState::Failed) {
             return;
         }
+
+        println!(
+            "Prediction: Class {}, Prob {:.4}",
+            prediction.class_id, prediction.probability
+        );
+
         let label = self
             .labels
             .as_ref()
@@ -196,11 +200,16 @@ impl Orchestrator {
             detected_at: SystemTime::now(),
             label,
         };
+
+        // Only a prediction produced while running proves the inference path is
+        // healthy; a late prediction while paused must not clear a recorded error.
+        let clear_error = self.state == PipelineState::Running;
+
         if let Ok(mut status) = self.status.lock() {
             status.last_prediction = Some(detection);
-            // A successful prediction means any transient inference error has
-            // cleared.
-            status.last_error = None;
+            if clear_error {
+                status.last_error = None;
+            }
             status.updated_at = SystemTime::now();
         }
     }
@@ -278,6 +287,14 @@ mod tests {
         fn send_capture_error(&self, message: &str) {
             self.event_tx
                 .send(SystemEvent::Capture(CaptureEvent::Error(
+                    message.to_string(),
+                )))
+                .unwrap();
+        }
+
+        fn send_inference_error(&self, message: &str) {
+            self.event_tx
+                .send(SystemEvent::Inference(InferenceEvent::Error(
                     message.to_string(),
                 )))
                 .unwrap();
@@ -410,6 +427,27 @@ mod tests {
             Some("Source exhausted")
         );
         assert!(matches!(harness.expect_inference(), InferenceCommand::Stop));
+    }
+
+    #[test]
+    fn late_inference_events_do_not_overwrite_a_fatal_error() {
+        let harness = Harness::new(false, None);
+        assert!(matches!(harness.expect_capture(), CaptureCommand::Start));
+
+        harness.send_capture_error("Source exhausted");
+        harness.wait_for_state(PipelineState::Failed);
+        // Failed stops the inference actor; consume that command first.
+        assert!(matches!(harness.expect_inference(), InferenceCommand::Stop));
+
+        // Both of these were already in flight when capture failed.
+        harness.send_prediction(42, 0.99);
+        harness.send_inference_error("late inference error");
+        thread::sleep(Duration::from_millis(50));
+
+        let status = harness.status.lock().unwrap();
+        assert_eq!(status.state, PipelineState::Failed);
+        assert_eq!(status.last_error.as_deref(), Some("Source exhausted"));
+        assert!(status.last_prediction.is_none());
     }
 
     #[test]
